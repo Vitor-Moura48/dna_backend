@@ -1,8 +1,16 @@
+import os
+import sys
 import uvicorn
 from fastapi import FastAPI
 
 from controllers import health_controller, mailing_controller, utility_controller
 from handlers.exception_handlers import global_exception_handler
+
+# Redireciona a saída padrão e a saída de erro para /dev/null (Para rodar em modo windowed sem abrir o console)
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
 app = FastAPI(
     title="DNA Backend",
