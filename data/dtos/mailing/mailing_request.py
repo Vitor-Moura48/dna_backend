@@ -1,18 +1,16 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from fastapi import UploadFile
-from typing import Optional
 
 class HygieneMailingRequest(BaseModel):
-    base_file_path: Optional[str] = Field(None, description="Caminho local do Arquivo")
-    base_file: Optional[UploadFile] = Field(None, description="Arquivo")
+    
+    # Configuração para permitir tipos arbitrários, como UploadFile
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    filter_file_path: Optional[str] = Field(None, description="Caminho local do Arquivo")
-    filter_file: Optional[UploadFile] = Field(None, description="Arquivo")
-
-    output_dir: str = Field(description="Caminho do diretório onde o arquivo filtrado será salvo")
+    base_file: UploadFile = Field(description="Arquivo base enviado pelo cliente")
+    filter_file: UploadFile = Field(description="Arquivo de filtro enviado pelo cliente")
 
     def validate_input(self):
-        if not self.base_file_path and not self.base_file:
-            raise ValueError("É necessário fornecer um caminho de arquivo ou um arquivo CSV.")
-        if not self.filter_file_path and not self.filter_file:
-            raise ValueError("É necessário fornecer um caminho de arquivo ou um arquivo CSV.")
+        if not self.base_file.filename:
+            raise ValueError("O arquivo base precisa ter um nome válido.")
+        if not self.filter_file.filename:
+            raise ValueError("O arquivo de filtro precisa ter um nome válido.")
