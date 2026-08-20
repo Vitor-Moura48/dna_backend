@@ -1,7 +1,7 @@
 import pandas as pd
-import io
+import io, numpy as np
 from os.path import splitext
-from data.dtos.mailing.mailing_request import HygieneMailingRequest
+from data.dtos.mailing.mailing_request import HygieneMailingRequest, CleanMailingRequest
 from data.dtos.mailing.mailing_response import HygieneMailingResponse
 
 class MailingService:
@@ -51,6 +51,50 @@ class MailingService:
 
 
         csv_content = filtered_df.to_csv(
+            sep=";",
+            index=False,
+        ).encode("cp1252")
+
+        return HygieneMailingResponse(
+            arquivo_gerado=new_file_name,
+            conteudo=csv_content,
+        )
+
+
+    async def clean_mailing(self, request: CleanMailingRequest) -> HygieneMailingResponse:
+
+        contents = await request.file.read()
+        df = pd.read_csv(
+            io.BytesIO(contents),
+            sep=";",
+            encoding="utf-8",
+        )
+
+
+        # Remove caracteres não numéricos
+        df["CNPJ"] = df["CNPJ"].str.replace(r'\D', '', regex=True)
+        df["CEP"] = df["CEP"].str.replace(r'\D', '', regex=True)
+
+        # Adicona um ponto no CNPJ para formatar corretamente
+        df["CNPJ"] += "."
+
+        # Processa a coluna de telefone [converte para string, remove o prefixo "BR", filtra os números com 11 dígitos e remove duplicatas]
+        df["Telefone 1"] = df["Telefone 1"].astype(str)
+        df["Telefone 1"] = df["Telefone 1"].str[2:]
+        df = df[df["Telefone 1"].str.len() == 11]
+        df = df.drop_duplicates(subset="Telefone 1")
+
+        # Cria novas colunas com base nas colunas existentes
+        df["CEP_Número"] = df["CEP"] + df["Número"]
+        df["Tipo_Endereço"] = df["Tipo"] + " " + df["Endereço"]
+
+        # Substitui os valores da coluna "Opção pelo MEI" com base na condição especificada
+        df["Opção pelo MEI"] = np.where(df["Opção pelo MEI"] == "S", "MEI", "CNPJ")
+
+
+        base_file_name = splitext(request.file.filename)[0]
+        new_file_name = f"{base_file_name}_clean.csv"
+        csv_content = df.to_csv(
             sep=";",
             index=False,
         ).encode("cp1252")

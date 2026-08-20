@@ -14,3 +14,15 @@ class HygieneMailingRequest(BaseModel):
             raise ValueError("O arquivo base precisa ter um nome válido.")
         if not self.filter_file.filename:
             raise ValueError("O arquivo de filtro precisa ter um nome válido.")
+
+
+class CleanMailingRequest(BaseModel):
+    
+    # Configuração para permitir tipos arbitrários, como UploadFile
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    file: UploadFile = Field(description="Arquivo enviado pelo cliente")
+
+    def validate_input(self):
+        if not self.file.filename:
+            raise ValueError("O arquivo precisa ter um nome válido.")
