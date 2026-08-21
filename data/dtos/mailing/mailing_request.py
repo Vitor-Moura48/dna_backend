@@ -26,3 +26,17 @@ class CleanMailingRequest(BaseModel):
     def validate_input(self):
         if not self.file.filename:
             raise ValueError("O arquivo precisa ter um nome válido.")
+
+
+class MatchMailingRequest(BaseModel):
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    base_file: UploadFile = Field(description="Arquivo base enviado pelo cliente")
+    reference_file: UploadFile = Field(description="Arquivo de referência com uma coluna")
+
+    def validate_input(self):
+        if not self.base_file.filename:
+            raise ValueError("O arquivo base precisa ter um nome válido.")
+        if not self.reference_file.filename:
+            raise ValueError("O arquivo de referência precisa ter um nome válido.")

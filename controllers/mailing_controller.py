@@ -1,7 +1,11 @@
 from http import HTTPStatus
 from fastapi import APIRouter, Depends, Response, UploadFile, File
 from services.mailing_service import MailingService
-from data.dtos.mailing.mailing_request import HygieneMailingRequest, CleanMailingRequest
+from data.dtos.mailing.mailing_request import (
+    HygieneMailingRequest,
+    CleanMailingRequest,
+    MatchMailingRequest,
+)
 from data.dtos.mailing.mailing_response import HygieneMailingResponse
 
 router = APIRouter()
@@ -44,6 +48,31 @@ async def clean_mailing(
     request.validate_input()
 
     result: HygieneMailingResponse = await mailing_service.clean_mailing(request)
+
+    return Response(
+        content=result.conteudo,
+        media_type="application/octet-stream",
+        status_code=HTTPStatus.OK,
+        headers={
+            "Content-Disposition": f'attachment; filename="{result.arquivo_gerado}"',
+        },
+    )
+
+
+@router.post("/match", status_code=HTTPStatus.OK)
+async def mark_mailing_matches(
+    base_file: UploadFile = File(...),
+    reference_file: UploadFile = File(...),
+    mailing_service: MailingService = Depends()
+    ):
+
+    request = MatchMailingRequest(
+        base_file=base_file,
+        reference_file=reference_file,
+    )
+    request.validate_input()
+
+    result: HygieneMailingResponse = await mailing_service.mark_mailing_matches(request)
 
     return Response(
         content=result.conteudo,

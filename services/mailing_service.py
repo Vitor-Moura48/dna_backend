@@ -1,28 +1,31 @@
 import pandas as pd
 import io, numpy as np
 from os.path import splitext
-from data.dtos.mailing.mailing_request import HygieneMailingRequest, CleanMailingRequest
+from data.dtos.mailing.mailing_request import (
+    HygieneMailingRequest,
+    CleanMailingRequest,
+    MatchMailingRequest,
+)
 from data.dtos.mailing.mailing_response import HygieneMailingResponse
 
 class MailingService:
     def __init__(self):
         pass
 
+    @staticmethod
+    def _read_csv(contents: bytes) -> pd.DataFrame:
+        try:
+            return pd.read_csv(io.BytesIO(contents), sep=";", encoding="utf-8-sig")
+        except UnicodeDecodeError:
+            return pd.read_csv(io.BytesIO(contents), sep=";", encoding="cp1252")
+
     async def hygiene_mailing(self, request: HygieneMailingRequest) -> HygieneMailingResponse:
 
         base_contents = await request.base_file.read()
-        base_df = pd.read_csv(
-            io.BytesIO(base_contents),
-            sep=";",
-            encoding="cp1252",
-        )
+        base_df = self._read_csv(base_contents)
 
         filter_contents = await request.filter_file.read()
-        filter_df = pd.read_csv(
-            io.BytesIO(filter_contents),
-            sep=";",
-            encoding="utf-8",
-        )
+        filter_df = self._read_csv(filter_contents)
 
 
         # Converte as colunas de número para string
@@ -64,11 +67,7 @@ class MailingService:
     async def clean_mailing(self, request: CleanMailingRequest) -> HygieneMailingResponse:
 
         contents = await request.file.read()
-        df = pd.read_csv(
-            io.BytesIO(contents),
-            sep=";",
-            encoding="utf-8",
-        )
+        df = self._read_csv(contents)
 
 
         # Remove caracteres não numéricos
@@ -88,6 +87,9 @@ class MailingService:
         df["CEP_Número"] = df["CEP"] + df["Número"]
         df["Tipo_Endereço"] = df["Tipo"] + " " + df["Endereço"]
 
+        # Remove caracteres não numéricos
+        df["CEP_Número"] = df["CEP_Número"].str.replace(r"[/\.\- ]", "", regex=True)
+
         # Substitui os valores da coluna "Opção pelo MEI" com base na condição especificada
         df["Opção pelo MEI"] = np.where(df["Opção pelo MEI"] == "S", "MEI", "CNPJ")
 
@@ -98,6 +100,28 @@ class MailingService:
             sep=";",
             index=False,
         ).encode("cp1252")
+
+        return HygieneMailingResponse(
+            arquivo_gerado=new_file_name,
+            conteudo=csv_content,
+        )
+
+
+    async def mark_mailing_matches(self, request: MatchMailingRequest) -> HygieneMailingResponse:
+        base_contents = await request.base_file.read()
+        base_df = self._read_csv(base_contents)
+
+        reference_contents = await request.reference_file.read()
+        reference_df = self._read_csv(reference_contents)
+
+
+        # Cria uma nova coluna "Cobertura" com base na correspondência com a coluna de referência
+        base_df["Cobertura"] = np.where(base_df["CEP_Número"].isin(reference_df[reference_df.columns[0]]), "SIM", "NÃO")
+
+
+        base_file_name = splitext(request.base_file.filename)[0]
+        new_file_name = f"{base_file_name}_matched.csv"
+        csv_content = base_df.to_csv(sep=";", index=False).encode("cp1252")
 
         return HygieneMailingResponse(
             arquivo_gerado=new_file_name,
