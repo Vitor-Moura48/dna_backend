@@ -3,7 +3,7 @@ import sys
 import uvicorn
 from fastapi import FastAPI
 
-from controllers import health_controller, mailing_controller, utility_controller
+from controllers import health_controller, mailing_controller
 from handlers.exception_handlers import global_exception_handler
 
 # Redireciona a saída padrão e a saída de erro para /dev/null (Para rodar em modo windowed sem abrir o console)
@@ -20,7 +20,6 @@ app = FastAPI(
 
 # Inclui os routers das controllers
 app.include_router(mailing_controller.router, prefix="/mailing", tags=["Mailing"])
-app.include_router (utility_controller.router, prefix="/utility", tags=["Utility"])
 app.include_router(health_controller.router, prefix="/health", tags=["Health"])
 
 # Adiciona o manipulador de exceções global

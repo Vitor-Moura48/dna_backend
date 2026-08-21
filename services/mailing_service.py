@@ -14,10 +14,19 @@ class MailingService:
 
     @staticmethod
     def _read_csv(contents: bytes) -> pd.DataFrame:
-        try:
-            return pd.read_csv(io.BytesIO(contents), sep=";", encoding="utf-8-sig")
-        except UnicodeDecodeError:
-            return pd.read_csv(io.BytesIO(contents), sep=";", encoding="cp1252")
+        for encoding in ("utf-8-sig", "utf-16", "cp1252", "latin1"):
+            try:
+                return pd.read_csv(io.BytesIO(contents), sep=";", encoding=encoding)
+            except UnicodeError:
+                continue
+
+        # Mantem a importacao funcionando quando houver bytes isolados corrompidos.
+        return pd.read_csv(
+            io.BytesIO(contents),
+            sep=";",
+            encoding="cp1252",
+            encoding_errors="replace",
+        )
 
     async def hygiene_mailing(self, request: HygieneMailingRequest) -> HygieneMailingResponse:
 
