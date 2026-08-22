@@ -2,10 +2,9 @@ from http import HTTPStatus
 from fastapi import APIRouter, Depends, Response, UploadFile, File
 from services.mailing_service import MailingService
 from data.dtos.mailing.mailing_request import (
-    HygieneMailingRequest,
-    CleanMailingRequest,
-    MatchMailingRequest,
-    ConcatenateMailingRequest,
+    SingleFileRequest,
+    TwoFilesRequest,
+    MultipleFilesRequest,
 )
 from data.dtos.mailing.mailing_response import HygieneMailingResponse
 
@@ -19,9 +18,9 @@ async def hygiene_mailing(
     ):
 
     # Monta o DTO
-    request = HygieneMailingRequest(
-        base_file=base_file,
-        filter_file=filter_file,
+    request = TwoFilesRequest(
+        first_file=base_file,
+        second_file=filter_file,
     )
     
     # Valida
@@ -45,10 +44,31 @@ async def clean_mailing(
     mailing_service: MailingService = Depends()
     ):
 
-    request = CleanMailingRequest(file=file)
+    request = SingleFileRequest(file=file)
     request.validate_input()
 
     result: HygieneMailingResponse = await mailing_service.clean_mailing(request)
+
+    return Response(
+        content=result.conteudo,
+        media_type="application/octet-stream",
+        status_code=HTTPStatus.OK,
+        headers={
+            "Content-Disposition": f'attachment; filename="{result.arquivo_gerado}"',
+        },
+    )
+
+
+@router.post("/pre-prospecting", status_code=HTTPStatus.OK)
+async def pre_prospecting(
+    file: UploadFile = File(...),
+    mailing_service: MailingService = Depends()
+    ):
+
+    request = SingleFileRequest(file=file)
+    request.validate_input()
+
+    result: HygieneMailingResponse = await mailing_service.pre_prospecting(request)
 
     return Response(
         content=result.conteudo,
@@ -67,9 +87,9 @@ async def mark_mailing_matches(
     mailing_service: MailingService = Depends()
     ):
 
-    request = MatchMailingRequest(
-        base_file=base_file,
-        reference_file=reference_file,
+    request = TwoFilesRequest(
+        first_file=base_file,
+        second_file=reference_file,
     )
     request.validate_input()
 
@@ -94,7 +114,7 @@ async def concatenate_mailing(
     mailing_service: MailingService = Depends()
     ):
 
-    request = ConcatenateMailingRequest(files=files)
+    request = MultipleFilesRequest(files=files)
     request.validate_input()
 
     result: HygieneMailingResponse = await mailing_service.concatenate_mailing(request)

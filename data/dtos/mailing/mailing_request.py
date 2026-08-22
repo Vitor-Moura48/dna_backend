@@ -2,22 +2,20 @@ from pydantic import BaseModel, ConfigDict, Field
 from fastapi import UploadFile
 from typing import List
 
-class HygieneMailingRequest(BaseModel):
+class TwoFilesRequest(BaseModel):
     
     # Configuração para permitir tipos arbitrários, como UploadFile
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    base_file: UploadFile = Field(description="Arquivo base enviado pelo cliente")
-    filter_file: UploadFile = Field(description="Arquivo de filtro enviado pelo cliente")
+    first_file: UploadFile = Field(description="Primeiro arquivo enviado pelo cliente")
+    second_file: UploadFile = Field(description="Segundo arquivo enviado pelo cliente")
 
     def validate_input(self):
-        if not self.base_file.filename:
-            raise ValueError("O arquivo base precisa ter um nome válido.")
-        if not self.filter_file.filename:
-            raise ValueError("O arquivo de filtro precisa ter um nome válido.")
+        if not self.first_file.filename or not self.second_file.filename:
+            raise ValueError("Os dois arquivos precisam ter nomes válidos.")
 
 
-class CleanMailingRequest(BaseModel):
+class SingleFileRequest(BaseModel):
     
     # Configuração para permitir tipos arbitrários, como UploadFile
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -29,21 +27,7 @@ class CleanMailingRequest(BaseModel):
             raise ValueError("O arquivo precisa ter um nome válido.")
 
 
-class MatchMailingRequest(BaseModel):
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    base_file: UploadFile = Field(description="Arquivo base enviado pelo cliente")
-    reference_file: UploadFile = Field(description="Arquivo de referência com uma coluna")
-
-    def validate_input(self):
-        if not self.base_file.filename:
-            raise ValueError("O arquivo base precisa ter um nome válido.")
-        if not self.reference_file.filename:
-            raise ValueError("O arquivo de referência precisa ter um nome válido.")
-
-
-class ConcatenateMailingRequest(BaseModel):
+class MultipleFilesRequest(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
