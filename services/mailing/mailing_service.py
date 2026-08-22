@@ -22,7 +22,7 @@ class MailingService:
         pass
 
     @staticmethod
-    def _read_csv(contents: bytes, dtype=str) -> pd.DataFrame:
+    def _read_csv(contents: bytes, file_name: str = "", dtype=str) -> pd.DataFrame:
         for encoding in ("utf-8-sig", "cp1252", "latin1", "utf-16"):
             try:
                 return pd.read_csv(
@@ -33,6 +33,11 @@ class MailingService:
                 )
             except UnicodeError:
                 continue
+            except (pd.errors.EmptyDataError, pd.errors.ParserError) as error:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Não foi possível ler o arquivo '{file_name}': {error}.",
+                ) from error
 
         # Mantem a importacao funcionando quando houver bytes isolados corrompidos.
         return pd.read_csv(
@@ -65,11 +70,11 @@ class MailingService:
     async def hygiene_mailing(self, request: TwoFilesRequest) -> HygieneMailingResponse:
 
         base_contents = await request.first_file.read()
-        base_df = self._read_csv(base_contents)
+        base_df = self._read_csv(base_contents, file_name=request.first_file.filename)
         self._validate_columns(base_df, ["DDDNUM"], request.first_file.filename)
 
         filter_contents = await request.second_file.read()
-        filter_df = self._read_csv(filter_contents)
+        filter_df = self._read_csv(filter_contents, file_name=request.second_file.filename)
         self._validate_columns(filter_df, ["number"], request.second_file.filename)
 
         filtered_df = hygiene_mailing_transformation(base_df, filter_df)
@@ -103,7 +108,7 @@ class MailingService:
     async def clean_mailing(self, request: SingleFileRequest) -> HygieneMailingResponse:
 
         contents = await request.file.read()
-        df = self._read_csv(contents)
+        df = self._read_csv(contents, file_name=request.file.filename)
         self._validate_columns(
             df,
             ["CNPJ", "CEP", "Telefone 1", "Número", "Tipo", "Endereço", "Opção pelo MEI"],
@@ -129,7 +134,7 @@ class MailingService:
 
     async def pre_prospecting(self, request: SingleFileRequest) -> HygieneMailingResponse:
         contents = await request.file.read()
-        df = self._read_csv(contents)
+        df = self._read_csv(contents, file_name=request.file.filename)
         self._validate_columns(
             df,
             ["CNPJ", "CEP", "Telefone 1"],
@@ -152,11 +157,14 @@ class MailingService:
 
     async def mark_mailing_matches(self, request: TwoFilesRequest) -> HygieneMailingResponse:
         base_contents = await request.first_file.read()
-        base_df = self._read_csv(base_contents)
+        base_df = self._read_csv(base_contents, file_name=request.first_file.filename)
         self._validate_columns(base_df, ["CEP_Número"], request.first_file.filename)
 
         reference_contents = await request.second_file.read()
-        reference_df = self._read_csv(reference_contents)
+        reference_df = self._read_csv(
+            reference_contents,
+            file_name=request.second_file.filename,
+        )
         
         if reference_df.empty or len(reference_df.columns) == 0:
             raise HTTPException(
@@ -183,7 +191,7 @@ class MailingService:
 
         for file in request.files:
             contents = await file.read()
-            dataframes.append(self._read_csv(contents))
+            dataframes.append(self._read_csv(contents, file_name=file.filename))
 
         concatenated_df = concatenate_mailing_transformation(dataframes)
         
