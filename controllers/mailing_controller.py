@@ -1,6 +1,6 @@
 from http import HTTPStatus
 from fastapi import APIRouter, Depends, Response, UploadFile, File
-from services.mailing_service import MailingService
+from services.mailing.mailing_service import MailingService
 from data.dtos.mailing.mailing_request import (
     SingleFileRequest,
     TwoFilesRequest,

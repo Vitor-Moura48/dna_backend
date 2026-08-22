@@ -1,5 +1,5 @@
 import pandas as pd
-import io, numpy as np
+import io
 from os.path import splitext
 from typing import List
 from fastapi import HTTPException
@@ -9,13 +9,20 @@ from data.dtos.mailing.mailing_request import (
     MultipleFilesRequest,
 )
 from data.dtos.mailing.mailing_response import HygieneMailingResponse
+from services.mailing.mailing_transformation import (
+    clean_mailing_transformation,
+    concatenate_mailing_transformation,
+    hygiene_mailing_transformation,
+    mark_mailing_matches_transformation,
+    pre_prospecting_transformation,
+)
 
 class MailingService:
     def __init__(self):
         pass
 
     @staticmethod
-    def _read_csv(contents: bytes, dtype=None) -> pd.DataFrame:
+    def _read_csv(contents: bytes, dtype=str) -> pd.DataFrame:
         for encoding in ("utf-8-sig", "cp1252", "latin1", "utf-16"):
             try:
                 return pd.read_csv(
@@ -65,16 +72,7 @@ class MailingService:
         filter_df = self._read_csv(filter_contents)
         self._validate_columns(filter_df, ["number"], request.second_file.filename)
 
-
-        # Converte as colunas de número para string
-        base_df["DDDNUM"] = base_df["DDDNUM"].astype(str)
-        filter_df["number"] = filter_df["number"].astype(str)
-
-        # Remove o prefixo "BR" da coluna filter_df
-        filter_df["number"] = filter_df["number"].str[2:]
-
-        # Filtra os registros do base_df que não estão presentes no filter_df
-        filtered_df = base_df[~base_df["DDDNUM"].isin(filter_df["number"])]
+        filtered_df = hygiene_mailing_transformation(base_df, filter_df)
 
 
         # Retorna o DataFrame filtrado como um novo arquivo CSV
@@ -113,28 +111,7 @@ class MailingService:
         )
 
 
-        # Remove caracteres não numéricos
-        df["CNPJ"] = df["CNPJ"].str.replace(r'\D', '', regex=True)
-        df["CEP"] = df["CEP"].str.replace(r'\D', '', regex=True)
-
-        # Adicona um ponto no CNPJ para formatar corretamente
-        df["CNPJ"] += "."
-
-        # Processa a coluna de telefone [converte para string, remove o prefixo "BR", filtra os números com 11 dígitos e remove duplicatas]
-        df["Telefone 1"] = df["Telefone 1"].astype(str)
-        df["Telefone 1"] = df["Telefone 1"].str[2:]
-        df = df[df["Telefone 1"].str.len() == 11]
-        df = df.drop_duplicates(subset="Telefone 1")
-
-        # Cria novas colunas com base nas colunas existentes
-        df["CEP_Número"] = df["CEP"] + df["Número"]
-        df["Tipo_Endereço"] = df["Tipo"] + " " + df["Endereço"]
-
-        # Remove caracteres não numéricos
-        df["CEP_Número"] = df["CEP_Número"].str.replace(r"[/\.\- ]", "", regex=True)
-
-        # Substitui os valores da coluna "Opção pelo MEI" com base na condição especificada
-        df["Opção pelo MEI"] = np.where(df["Opção pelo MEI"] == "S", "MEI", "CNPJ")
+        df = clean_mailing_transformation(df)
 
 
         base_file_name = splitext(request.file.filename)[0]
@@ -152,7 +129,7 @@ class MailingService:
 
     async def pre_prospecting(self, request: SingleFileRequest) -> HygieneMailingResponse:
         contents = await request.file.read()
-        df = self._read_csv(contents, dtype={"CNPJ": str})
+        df = self._read_csv(contents)
         self._validate_columns(
             df,
             ["CNPJ", "CEP", "Telefone 1"],
@@ -160,12 +137,7 @@ class MailingService:
         )
 
 
-        # Remove pontos da coluna "CNPJ"
-        df["CNPJ"] = df["CNPJ"].str.replace(".", "", regex=False)
-
-        # Copia apenas as colunas necessárias e renomeia-as
-        result_df = df[["CNPJ", "CEP", "Telefone 1"]].copy()
-        result_df = result_df.rename(columns={"CNPJ": "Documento", "Telefone 1": "Telefone"})
+        result_df = pre_prospecting_transformation(df)
 
 
         base_file_name = splitext(request.file.filename)[0]
@@ -193,8 +165,7 @@ class MailingService:
             )
 
 
-        # Cria uma nova coluna "Cobertura" com base na correspondência com a coluna de referência
-        base_df["Cobertura"] = np.where(base_df["CEP_Número"].isin(reference_df[reference_df.columns[0]]), "SIM", "NÃO")
+        base_df = mark_mailing_matches_transformation(base_df, reference_df)
 
 
         base_file_name = splitext(request.first_file.filename)[0]
@@ -214,7 +185,7 @@ class MailingService:
             contents = await file.read()
             dataframes.append(self._read_csv(contents))
 
-        concatenated_df = pd.concat(dataframes, ignore_index=True)
+        concatenated_df = concatenate_mailing_transformation(dataframes)
         
         base_file_name = splitext(request.files[0].filename)[0]
         new_file_name = f"{base_file_name}_concatenated.csv"
