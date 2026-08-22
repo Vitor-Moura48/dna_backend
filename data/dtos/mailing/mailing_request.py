@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 from fastapi import UploadFile
+from typing import List
 
 class HygieneMailingRequest(BaseModel):
     
@@ -40,3 +41,17 @@ class MatchMailingRequest(BaseModel):
             raise ValueError("O arquivo base precisa ter um nome válido.")
         if not self.reference_file.filename:
             raise ValueError("O arquivo de referência precisa ter um nome válido.")
+
+
+class ConcatenateMailingRequest(BaseModel):
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    files: List[UploadFile] = Field(description="Arquivos CSV enviados para concatenação")
+
+    def validate_input(self):
+        if len(self.files) < 2:
+            raise ValueError("É necessário enviar pelo menos dois arquivos.")
+
+        if any(not file.filename for file in self.files):
+            raise ValueError("Todos os arquivos precisam ter um nome válido.")

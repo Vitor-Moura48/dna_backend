@@ -5,6 +5,7 @@ from data.dtos.mailing.mailing_request import (
     HygieneMailingRequest,
     CleanMailingRequest,
     MatchMailingRequest,
+    ConcatenateMailingRequest,
 )
 from data.dtos.mailing.mailing_response import HygieneMailingResponse
 
@@ -73,6 +74,30 @@ async def mark_mailing_matches(
     request.validate_input()
 
     result: HygieneMailingResponse = await mailing_service.mark_mailing_matches(request)
+
+    return Response(
+        content=result.conteudo,
+        media_type="application/octet-stream",
+        status_code=HTTPStatus.OK,
+        headers={
+            "Content-Disposition": f'attachment; filename="{result.arquivo_gerado}"',
+        },
+    )
+
+
+@router.post("/concatenate", status_code=HTTPStatus.OK)
+async def concatenate_mailing(
+    files: list[UploadFile] = File(
+        ...,
+        json_schema_extra={"items": {"type": "string", "format": "binary"}},
+    ),
+    mailing_service: MailingService = Depends()
+    ):
+
+    request = ConcatenateMailingRequest(files=files)
+    request.validate_input()
+
+    result: HygieneMailingResponse = await mailing_service.concatenate_mailing(request)
 
     return Response(
         content=result.conteudo,

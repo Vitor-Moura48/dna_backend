@@ -1,10 +1,12 @@
 import pandas as pd
 import io, numpy as np
 from os.path import splitext
+from typing import List
 from data.dtos.mailing.mailing_request import (
     HygieneMailingRequest,
     CleanMailingRequest,
     MatchMailingRequest,
+    ConcatenateMailingRequest,
 )
 from data.dtos.mailing.mailing_response import HygieneMailingResponse
 
@@ -14,7 +16,7 @@ class MailingService:
 
     @staticmethod
     def _read_csv(contents: bytes) -> pd.DataFrame:
-        for encoding in ("utf-8-sig", "utf-16", "cp1252", "latin1"):
+        for encoding in ("utf-8-sig", "cp1252", "latin1", "utf-16"):
             try:
                 return pd.read_csv(io.BytesIO(contents), sep=";", encoding=encoding)
             except UnicodeError:
@@ -131,6 +133,25 @@ class MailingService:
         base_file_name = splitext(request.base_file.filename)[0]
         new_file_name = f"{base_file_name}_matched.csv"
         csv_content = base_df.to_csv(sep=";", index=False).encode("cp1252")
+
+        return HygieneMailingResponse(
+            arquivo_gerado=new_file_name,
+            conteudo=csv_content,
+        )
+
+
+    async def concatenate_mailing(self, request: ConcatenateMailingRequest) -> HygieneMailingResponse:
+        dataframes: List[pd.DataFrame] = []
+
+        for file in request.files:
+            contents = await file.read()
+            dataframes.append(self._read_csv(contents))
+
+        concatenated_df = pd.concat(dataframes, ignore_index=True)
+        
+        base_file_name = splitext(request.files[0].filename)[0]
+        new_file_name = f"{base_file_name}_concatenated.csv"
+        csv_content = concatenated_df.to_csv(sep=";", index=False).encode("cp1252")
 
         return HygieneMailingResponse(
             arquivo_gerado=new_file_name,
