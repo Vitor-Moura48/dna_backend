@@ -1,5 +1,9 @@
 import numpy as np
 import pandas as pd
+from fastapi import HTTPException
+from typing import List
+import os
+import tempfile
 
 
 def hygiene_mailing_transformation(
@@ -46,9 +50,9 @@ def pre_prospecting_transformation(dataframe: pd.DataFrame) -> pd.DataFrame:
 	dataframe = dataframe.copy()
 	dataframe["CNPJ"] = dataframe["CNPJ"].str.replace(".", "", regex=False)
 
-	result_dataframe = dataframe[["CNPJ", "CEP", "Telefone 1"]].copy()
+	result_dataframe = dataframe[["CNPJ", "CEP", "Número", "Telefone 1"]].copy()
 	return result_dataframe.rename(
-		columns={"CNPJ": "Documento", "Telefone 1": "Telefone"}
+		columns={"CNPJ": "Documento", "Número": "NUMERO", "Telefone 1": "TELEFONE"}
 	)
 
 
@@ -65,7 +69,34 @@ def mark_mailing_matches_transformation(
 	return base_dataframe
 
 
-def concatenate_mailing_transformation(
-	dataframes: list[pd.DataFrame],
-) -> pd.DataFrame:
-	return pd.concat(dataframes, ignore_index=True)
+def concatenate_mailing_in_memory_transformation( 
+	dataframes: List[pd.DataFrame]
+) -> bytes:
+    concatenated_df = pd.concat(dataframes, ignore_index=True)
+    return concatenated_df.to_csv(sep=";", index=False).encode("utf-8-sig", errors="ignore")
+
+def concatenate_mailing_on_disk_transformation( 
+    dataframes: List[pd.DataFrame]
+) -> bytes:
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    try:
+        for i, df in enumerate(dataframes):
+            concatenate_in_memory([df]).to_csv(
+                tmp_path, sep=";", index=False, mode="a",
+                header=(i == 0), encoding="utf-8-sig", errors="ignore",
+            )
+            dataframes[i] = None
+    except MemoryError:
+        raise HTTPException(
+            status_code=413,
+            detail="Os arquivos são muito grandes até para o processamento em disco. "
+                   "Tente enviar menos arquivos por vez.",
+        )
+    finally:
+        with open(tmp_path, "rb") as f:
+            content = f.read()
+        os.remove(tmp_path)
+
+    return content

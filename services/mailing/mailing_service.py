@@ -11,7 +11,8 @@ from data.dtos.mailing.mailing_request import (
 from data.dtos.mailing.mailing_response import HygieneMailingResponse
 from services.mailing.mailing_transformation import (
     clean_mailing_transformation,
-    concatenate_mailing_transformation,
+    concatenate_mailing_in_memory_transformation,
+    concatenate_mailing_on_disk_transformation,
     hygiene_mailing_transformation,
     mark_mailing_matches_transformation,
     pre_prospecting_transformation,
@@ -193,11 +194,15 @@ class MailingService:
             contents = await file.read()
             dataframes.append(self._read_csv(contents, file_name=file.filename))
 
-        concatenated_df = concatenate_mailing_transformation(dataframes)
-        
+
+        try:
+            csv_content = concatenate_mailing_in_memory_transformation(dataframes)
+        except MemoryError:
+            csv_content = concatenate_mailing_on_disk_transformation(dataframes)
+
+
         base_file_name = splitext(request.files[0].filename)[0]
         new_file_name = f"{base_file_name}_concatenated.csv"
-        csv_content = concatenated_df.to_csv(sep=";", index=False).encode("cp1252")
 
         return HygieneMailingResponse(
             arquivo_gerado=new_file_name,
