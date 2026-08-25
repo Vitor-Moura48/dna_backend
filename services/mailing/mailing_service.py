@@ -11,8 +11,7 @@ from data.dtos.mailing.mailing_request import (
 from data.dtos.mailing.mailing_response import HygieneMailingResponse
 from services.mailing.mailing_transformation import (
     clean_mailing_transformation,
-    concatenate_mailing_in_memory_transformation,
-    concatenate_mailing_on_disk_transformation,
+    concatenate_mailing_transformation,
     hygiene_mailing_transformation,
     mark_mailing_matches_transformation,
     pre_prospecting_transformation,
@@ -138,7 +137,7 @@ class MailingService:
         df = self._read_csv(contents, file_name=request.file.filename)
         self._validate_columns(
             df,
-            ["CNPJ", "CEP", "Telefone 1"],
+            ["CNPJ", "CEP", "Número", "Telefone 1"],
             request.file.filename,
         )
 
@@ -196,9 +195,13 @@ class MailingService:
 
 
         try:
-            csv_content = concatenate_mailing_in_memory_transformation(dataframes)
+            csv_content = concatenate_mailing_transformation(dataframes)
         except MemoryError:
-            csv_content = concatenate_mailing_on_disk_transformation(dataframes)
+            raise HTTPException(
+                status_code=413,
+                detail="Os arquivos são muito grandes para o processamento em disco. "
+                       "Tente enviar menos arquivos por vez.",
+            )
 
 
         base_file_name = splitext(request.files[0].filename)[0]

@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from fastapi import HTTPException
 from typing import List
 import os
 import tempfile
@@ -69,34 +68,23 @@ def mark_mailing_matches_transformation(
 	return base_dataframe
 
 
-def concatenate_mailing_in_memory_transformation( 
-	dataframes: List[pd.DataFrame]
-) -> bytes:
-    concatenated_df = pd.concat(dataframes, ignore_index=True)
-    return concatenated_df.to_csv(sep=";", index=False).encode("utf-8-sig", errors="ignore")
-
-def concatenate_mailing_on_disk_transformation( 
+def concatenate_mailing_transformation(
     dataframes: List[pd.DataFrame]
 ) -> bytes:
+    all_columns = list(dict.fromkeys(col for df in dataframes for col in df.columns))
+
     with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
         tmp_path = tmp.name
 
     try:
         for i, df in enumerate(dataframes):
-            concatenate_in_memory([df]).to_csv(
+            df.reindex(columns=all_columns).to_csv(
                 tmp_path, sep=";", index=False, mode="a",
                 header=(i == 0), encoding="utf-8-sig", errors="ignore",
             )
             dataframes[i] = None
-    except MemoryError:
-        raise HTTPException(
-            status_code=413,
-            detail="Os arquivos são muito grandes até para o processamento em disco. "
-                   "Tente enviar menos arquivos por vez.",
-        )
-    finally:
-        with open(tmp_path, "rb") as f:
-            content = f.read()
-        os.remove(tmp_path)
 
-    return content
+        with open(tmp_path, "rb") as f:
+            return f.read()
+    finally:
+        os.remove(tmp_path)

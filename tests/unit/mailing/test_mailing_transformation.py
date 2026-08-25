@@ -71,6 +71,7 @@ def test_pre_prospecting_selects_and_renames_columns():
         {
             "CNPJ": ["12.345"],
             "CEP": ["01000."],
+            "Número": ["1456D2"],
             "Telefone 1": ["11999999999"],
             "extra": ["ignored"],
         }
@@ -79,7 +80,7 @@ def test_pre_prospecting_selects_and_renames_columns():
     result = pre_prospecting_transformation(dataframe)
 
     assert result.to_dict("records") == [
-        {"Documento": "12345", "CEP": "01000.", "Telefone": "11999999999"}
+        {"Documento": "12345", "CEP": "01000.", "NUMERO": "1456D2", "TELEFONE": "11999999999"}
     ]
 
 
@@ -99,4 +100,17 @@ def test_concatenate_combines_dataframes_and_preserves_order():
 
     result = concatenate_mailing_transformation([first, second])
 
-    assert result["value"].tolist() == ["a", "b", "c"]
+    assert result.decode("utf-8-sig").splitlines() == ["value", "a", "b", "c"]
+
+
+def test_concatenate_aligns_different_columns_with_empty_values():
+    first = pd.DataFrame({"A": ["1"], "B": ["2"]})
+    second = pd.DataFrame({"B": ["3"], "C": ["4"]})
+
+    result = concatenate_mailing_transformation([first, second])
+
+    assert result.decode("utf-8-sig").splitlines() == [
+        "A;B;C",
+        "1;2;",
+        ";3;4",
+    ]
