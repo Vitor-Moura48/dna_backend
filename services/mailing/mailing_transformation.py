@@ -1,5 +1,8 @@
 import numpy as np
 import pandas as pd
+from typing import List
+import os
+import tempfile
 
 
 def hygiene_mailing_transformation(
@@ -46,9 +49,9 @@ def pre_prospecting_transformation(dataframe: pd.DataFrame) -> pd.DataFrame:
 	dataframe = dataframe.copy()
 	dataframe["CNPJ"] = dataframe["CNPJ"].str.replace(".", "", regex=False)
 
-	result_dataframe = dataframe[["CNPJ", "CEP", "Telefone 1"]].copy()
+	result_dataframe = dataframe[["CNPJ", "CEP", "Número", "Telefone 1"]].copy()
 	return result_dataframe.rename(
-		columns={"CNPJ": "Documento", "Telefone 1": "Telefone"}
+		columns={"CNPJ": "Documento", "Número": "NUMERO", "Telefone 1": "TELEFONE"}
 	)
 
 
@@ -66,6 +69,22 @@ def mark_mailing_matches_transformation(
 
 
 def concatenate_mailing_transformation(
-	dataframes: list[pd.DataFrame],
-) -> pd.DataFrame:
-	return pd.concat(dataframes, ignore_index=True)
+    dataframes: List[pd.DataFrame]
+) -> bytes:
+    all_columns = list(dict.fromkeys(col for df in dataframes for col in df.columns))
+
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    try:
+        for i, df in enumerate(dataframes):
+            df.reindex(columns=all_columns).to_csv(
+                tmp_path, sep=";", index=False, mode="a",
+                header=(i == 0), encoding="utf-8-sig", errors="ignore",
+            )
+            dataframes[i] = None
+
+        with open(tmp_path, "rb") as f:
+            return f.read()
+    finally:
+        os.remove(tmp_path)

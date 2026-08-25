@@ -82,13 +82,13 @@ def test_clean_service_returns_clean_csv(csv_upload):
 
 
 def test_pre_prospecting_service_returns_expected_columns(csv_upload):
-    content = "CNPJ;CEP;Telefone 1\n001.234;01000.;11999999999\n"
+    content = "CNPJ;CEP;Número;Telefone 1\n001.234;01000.;10;11999999999\n"
     result = run(MailingService().pre_prospecting(single_request(csv_upload, content)))
 
     assert result.arquivo_gerado == "input_pre_prospecting.csv"
     assert result.conteudo.decode("cp1252").splitlines() == [
-        "Documento;CEP;Telefone",
-        "001234;01000.;11999999999",
+        "Documento;CEP;NUMERO;TELEFONE",
+        "001234;01000.;10;11999999999",
     ]
 
 
@@ -116,7 +116,7 @@ def test_concatenate_service_combines_files(csv_upload):
     result = run(MailingService().concatenate_mailing(request))
 
     assert result.arquivo_gerado == "first_concatenated.csv"
-    assert result.conteudo.decode("cp1252").splitlines() == ["value", "a", "b"]
+    assert result.conteudo.decode("utf-8-sig").splitlines() == ["value", "a", "b"]
 
 
 @pytest.mark.parametrize(

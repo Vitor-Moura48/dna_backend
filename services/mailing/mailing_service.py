@@ -137,7 +137,7 @@ class MailingService:
         df = self._read_csv(contents, file_name=request.file.filename)
         self._validate_columns(
             df,
-            ["CNPJ", "CEP", "Telefone 1"],
+            ["CNPJ", "CEP", "Número", "Telefone 1"],
             request.file.filename,
         )
 
@@ -193,11 +193,19 @@ class MailingService:
             contents = await file.read()
             dataframes.append(self._read_csv(contents, file_name=file.filename))
 
-        concatenated_df = concatenate_mailing_transformation(dataframes)
-        
+
+        try:
+            csv_content = concatenate_mailing_transformation(dataframes)
+        except MemoryError:
+            raise HTTPException(
+                status_code=413,
+                detail="Os arquivos são muito grandes para o processamento em disco. "
+                       "Tente enviar menos arquivos por vez.",
+            )
+
+
         base_file_name = splitext(request.files[0].filename)[0]
         new_file_name = f"{base_file_name}_concatenated.csv"
-        csv_content = concatenated_df.to_csv(sep=";", index=False).encode("cp1252")
 
         return HygieneMailingResponse(
             arquivo_gerado=new_file_name,
