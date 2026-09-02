@@ -26,6 +26,7 @@ def clean_mailing_transformation(dataframe: pd.DataFrame) -> pd.DataFrame:
 
 	dataframe["CNPJ"] = dataframe["CNPJ"].str.replace(r"\D", "", regex=True)
 	dataframe["CEP"] = dataframe["CEP"].str.replace(r"\D", "", regex=True)
+	dataframe["Telefone 1"] = dataframe["Telefone 1"].str.replace(r"\D", "", regex=True)
 	dataframe["CNPJ"] += "."
 
 	dataframe["Telefone 1"] = dataframe["Telefone 1"].astype(str)
